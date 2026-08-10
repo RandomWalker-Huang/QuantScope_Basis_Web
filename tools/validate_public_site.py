@@ -14,10 +14,25 @@ from typing import Any
 EXPECTED_TENORS = {"近月", "次近月", "次远月", "最远月"}
 EXPECTED_SYMBOLS = {"IM", "IC", "IH", "IF"}
 TOP_LEVEL_KEYS = {"generated_at", "date_start", "date_end", "analysis", "default"}
-ANALYSIS_KEYS = {"products", "series", "tenors"}
+ANALYSIS_KEYS = {
+    "products", "series", "convergence", "errors", "tenors", "formula",
+}
 PRODUCT_KEYS = {"symbol", "future_name", "spot_code", "spot_name", "tenors"}
 ROW_KEYS = {"date", "spot_price", "contracts"}
 CONTRACT_KEYS = {"contract", "price", "expiry_date", "days_to_expiry"}
+CONVERGENCE_ROW_KEYS = {
+    "signal_date", "outcome_date", "near_contract", "far_contract",
+    "holding_days", "far_days_to_expiry", "q_initial", "q_terminal",
+    "static_roll_down", "actual_convergence", "toward_zero_convergence",
+    "unexpected_convergence", "annualized_actual_convergence",
+    "adverse_widening",
+}
+FORMULA_KEYS = {
+    "difference", "annualized_spot_future", "annualized_future_spread",
+    "log_basis", "annualized_log_spot_future",
+    "annualized_log_future_spread", "day_count", "q_curve",
+    "static_roll_down", "historical_convergence",
+}
 DEFAULT_KEYS = {
     "symbol", "display", "construction", "source_s", "source_f",
     "compare_f1", "compare_f2", "mode", "show_details",
@@ -86,6 +101,9 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, int]:
     products = analysis.get("products")
     series = analysis.get("series")
     tenors = analysis.get("tenors")
+    convergence = analysis.get("convergence", {})
+    errors = analysis.get("errors", {})
+    formula = analysis.get("formula", {})
     if not isinstance(products, list) or not products:
         fail("products为空")
     if not isinstance(series, dict) or not series:
@@ -142,6 +160,42 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, int]:
                     fail(f"{symbol}[{row_index}].{tenor}缺少剩余期限")
         counts[symbol] = len(rows)
 
+    if not isinstance(convergence, dict):
+        fail("convergence必须是对象")
+    for symbol, tenor_groups in convergence.items():
+        if symbol not in product_symbols:
+            fail(f"convergence包含未声明品种：{symbol}")
+        if not isinstance(tenor_groups, dict):
+            fail(f"convergence.{symbol}必须是对象")
+        for tenor, rows in tenor_groups.items():
+            if tenor not in EXPECTED_TENORS:
+                fail(f"convergence.{symbol}包含未知期限：{tenor}")
+            if not isinstance(rows, list):
+                fail(f"convergence.{symbol}.{tenor}必须是数组")
+            for row_index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    fail(f"convergence.{symbol}.{tenor}[{row_index}]不是对象")
+                assert_allowed_keys(
+                    row,
+                    CONVERGENCE_ROW_KEYS,
+                    f"convergence.{symbol}.{tenor}[{row_index}]",
+                )
+
+    if not isinstance(errors, dict):
+        fail("errors必须是对象")
+    for symbol, message in errors.items():
+        if symbol not in EXPECTED_SYMBOLS:
+            fail(f"errors包含未知品种：{symbol}")
+        if not isinstance(message, str):
+            fail(f"errors.{symbol}必须是文字")
+
+    if not isinstance(formula, dict):
+        fail("formula必须是对象")
+    assert_allowed_keys(formula, FORMULA_KEYS, "formula")
+    for name, expression in formula.items():
+        if not isinstance(expression, str):
+            fail(f"formula.{name}必须是文字")
+
     walk_keys(payload)
     return counts
 
@@ -178,4 +232,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
