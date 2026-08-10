@@ -1,0 +1,39 @@
+# QuantScope 完整平台与本地运行环境
+QuantScope_RQAlpha/
+.venv/
+venv/
+env/
+instance/
+cache/
+data_cache/
+market_cache/
+__pycache__/
+*.pyc
+
+# 原始行情、数据库与压缩包
+*.csv
+*.parquet
+*.feather
+*.pkl
+*.pickle
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+
+# 凭证和本地配置
+.env
+.env.*
+config.json
+config.local.json
+*credential*
+*secret*
+*token*
+rqdata_*
+
+# 操作系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
