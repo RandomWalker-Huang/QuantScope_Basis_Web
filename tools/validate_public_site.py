@@ -16,10 +16,14 @@ EXPECTED_SYMBOLS = {"IM", "IC", "IH", "IF"}
 TOP_LEVEL_KEYS = {"generated_at", "date_start", "date_end", "analysis", "default"}
 ANALYSIS_KEYS = {
     "products", "series", "convergence", "errors", "tenors", "formula",
+    "dividend",
 }
 PRODUCT_KEYS = {"symbol", "future_name", "spot_code", "spot_name", "tenors"}
 ROW_KEYS = {"date", "spot_price", "contracts"}
-CONTRACT_KEYS = {"contract", "price", "expiry_date", "days_to_expiry"}
+CONTRACT_KEYS = {
+    "contract", "price", "expiry_date", "days_to_expiry",
+    "trading_days_to_expiry", "dividend_points", "next_day_dividend_points",
+}
 CONVERGENCE_ROW_KEYS = {
     "signal_date", "outcome_date", "near_contract", "far_contract",
     "holding_days", "far_days_to_expiry", "q_initial", "q_terminal",
@@ -33,9 +37,15 @@ FORMULA_KEYS = {
     "annualized_log_future_spread", "day_count", "q_curve",
     "static_roll_down", "historical_convergence",
 }
+DIVIDEND_KEYS = {"source", "available", "adjustment"}
 DEFAULT_KEYS = {
     "symbol", "display", "construction", "source_s", "source_f",
-    "compare_f1", "compare_f2", "mode", "show_details",
+    "compare_f1", "compare_f2", "mode", "show_details", "show_spot_price",
+    "dividend_adjusted", "day_count",
+    "compare_mode_a", "compare_mode_b",
+    "compare_dividend_a", "compare_dividend_b",
+    "compare_day_count_a", "compare_day_count_b",
+    "statistics_mode", "statistics_dividend_adjusted", "statistics_day_count",
 }
 SENSITIVE_KEY = re.compile(
     r"password|passwd|secret|token|api[_-]?key|credential|username|user_name",
@@ -104,6 +114,7 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, int]:
     convergence = analysis.get("convergence", {})
     errors = analysis.get("errors", {})
     formula = analysis.get("formula", {})
+    dividend = analysis.get("dividend", {})
     if not isinstance(products, list) or not products:
         fail("products为空")
     if not isinstance(series, dict) or not series:
@@ -158,6 +169,13 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, int]:
                     fail(f"{symbol}[{row_index}].{tenor}缺少期货价格")
                 if not isinstance(contract.get("days_to_expiry"), (int, float)):
                     fail(f"{symbol}[{row_index}].{tenor}缺少剩余期限")
+                trading_days = contract.get("trading_days_to_expiry")
+                if trading_days is not None and not isinstance(trading_days, (int, float)):
+                    fail(f"{symbol}[{row_index}].{tenor}剩余交易日格式错误")
+                for optional_number in ("dividend_points", "next_day_dividend_points"):
+                    value = contract.get(optional_number)
+                    if value is not None and not isinstance(value, (int, float)):
+                        fail(f"{symbol}[{row_index}].{tenor}.{optional_number}格式错误")
         counts[symbol] = len(rows)
 
     if not isinstance(convergence, dict):
@@ -195,6 +213,16 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, int]:
     for name, expression in formula.items():
         if not isinstance(expression, str):
             fail(f"formula.{name}必须是文字")
+
+    if not isinstance(dividend, dict):
+        fail("dividend必须是对象")
+    assert_allowed_keys(dividend, DIVIDEND_KEYS, "dividend")
+    if "source" in dividend and not isinstance(dividend["source"], str):
+        fail("dividend.source必须是文字")
+    if "available" in dividend and not isinstance(dividend["available"], bool):
+        fail("dividend.available必须是布尔值")
+    if "adjustment" in dividend and not isinstance(dividend["adjustment"], str):
+        fail("dividend.adjustment必须是文字")
 
     walk_keys(payload)
     return counts
